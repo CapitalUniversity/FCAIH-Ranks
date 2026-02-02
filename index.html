@@ -36,24 +36,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState } = React;
-
-        // CONFIGURATION - Update these Google Drive file IDs
-        // To get the file ID: Share the file → Get link → Extract the ID from the URL
-        // URL format: https://drive.google.com/file/d/FILE_ID_HERE/view?usp=sharing
-        const DRIVE_CONFIG = {
-            2022: '1vD9K0jkjaBQWiowAhgZMQT7BKQKd_vpb',  // https://drive.google.com/file/d/1vD9K0jkjaBQWiowAhgZMQT7BKQKd_vpb/view?usp=sharing
-            2023: '1OsK89EplPkHKfYze0BA8BmWcHPz0pLwR',  // https://drive.google.com/file/d/1OsK89EplPkHKfYze0BA8BmWcHPz0pLwR/view?usp=sharing
-            2024: '1kGiOTU4eg8U1xNZbIS8bOwXn0VR3nAut',  // https://drive.google.com/file/d/1kGiOTU4eg8U1xNZbIS8bOwXn0VR3nAut/view?usp=sharing
-            2025: '1BOtlCpMnhzmKvwoy6Psi3GTsyrfW4TBE',  // https://drive.google.com/file/d/1BOtlCpMnhzmKvwoy6Psi3GTsyrfW4TBE/view?usp=sharing
-        };
-
-        // Icon components using lucide
-        const SearchIcon = () => <i data-lucide="search" className="w-5 h-5"></i>;
-        const AwardIcon = () => <i data-lucide="award" className="w-5 h-5"></i>;
-        const BookOpenIcon = () => <i data-lucide="book-open" className="w-5 h-5"></i>;
-        const AlertCircleIcon = () => <i data-lucide="alert-circle" className="w-5 h-5"></i>;
-        const Loader2Icon = () => <i data-lucide="loader-2" className="w-5 h-5 animate-spin"></i>;
+        const { useState, useEffect } = React;
 
         function StudentRankLookup() {
             const [studentId, setStudentId] = useState('');
@@ -61,103 +44,18 @@
             const [result, setResult] = useState(null);
             const [error, setError] = useState(null);
 
-            // Initialize lucide icons after render
-            React.useEffect(() => {
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
+            const GIST_URL = "https://gist.githubusercontent.com/CapitalUniversity/749d023d43e89582e80494ea8147f9bf/raw/";
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
             }, [result, error, loading]);
-
-            const getYear = (id) => {
-                if (!id || id.length < 4) return null;
-                return id.substring(0, 4);
-            };
-
-            const fetchStudentData = async (id) => {
-                const year = getYear(id);
-                if (!year || !DRIVE_CONFIG[year]) {
-                    setError(`Invalid student ID or year ${year} not configured`);
-                    return;
-                }
-
-                setLoading(true);
-                setError(null);
-                setResult(null);
-
-                try {
-                    // 1. Use the Export URL format for better compatibility
-                    const fileId = DRIVE_CONFIG[year];
-                    const csvUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
-                    
-                    // Note: For Google Drive files (not Sheets), use: 
-                    // const csvUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-
-                    const response = await fetch(csvUrl);
-                    if (!response.ok) throw new Error('Could not reach the data source');
-                    
-                    const csvText = await response.text();
-                    
-                    // 2. Simple CSV Parser
-                    const rows = csvText.split('\n').map(row => row.split(','));
-                    const headers = rows[0].map(h => h.trim().toLowerCase());
-                    
-                    // Find the index of the columns
-                    const idIdx = headers.indexOf('id');
-                    const specIdx = headers.indexOf('specialization');
-                    const gpaIdx = headers.indexOf('gpa');
-                    const hoursIdx = headers.indexOf('credit_hours');
-                    const rankIdx = headers.indexOf('rank');
-
-                    // 3. Search for the student
-                    const studentRow = rows.find(row => row[idIdx]?.trim() === id);
-
-                    if (!studentRow) {
-                        setError(`Student ID ${id} not found in ${year} records`);
-                        return;
-                    }
-
-                    // 4. Map data to result
-                    setResult({
-                        id: studentRow[idIdx],
-                        specialization: studentRow[specIdx],
-                        gpa: studentRow[gpaIdx],
-                        credit_hours: studentRow[hoursIdx],
-                        rank: studentRow[rankIdx],
-                        year: year
-                    });
-
-                } catch (err) {
-                    console.error('Error:', err);
-                    setError("Access Denied: Ensure the Google Drive file is shared as 'Anyone with the link can view'.");
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                const trimmedId = studentId.trim();
-                
-                if (!trimmedId) {
-                    setError('Please enter a student ID');
-                    return;
-                }
-
-                if (!/^\d{8}$/.test(trimmedId)) {
-                    setError('Student ID must be 8 digits');
-                    return;
-                }
-
-                fetchStudentData(trimmedId);
-            };
 
             const getRankColor = (rank) => {
                 if (rank === 'N/A' || !rank) return 'text-gray-500';
                 const numRank = parseInt(rank);
-                if (numRank === 1) return 'text-yellow-500';
-                if (numRank <= 10) return 'text-blue-500';
-                if (numRank <= 50) return 'text-green-500';
-                return 'text-gray-600';
+                if (numRank <= 10) return 'text-yellow-500'; 
+                if (numRank <= 100) return 'text-blue-500';
+                return 'text-indigo-600';
             };
 
             const getRankBadge = (rank) => {
@@ -167,6 +65,62 @@
                 if (numRank <= 10) return '🏆 Top 10';
                 if (numRank <= 50) return '⭐ Top 50';
                 return null;
+            };
+
+            const fetchStudentData = async (id) => {
+                setLoading(true);
+                setError(null);
+                setResult(null);
+
+                try {
+                    const response = await fetch(`${GIST_URL}?t=${Date.now()}`);
+                    if (!response.ok) throw new Error('Could not load database');
+                    
+                    const csvText = await response.text();
+                    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
+                    
+                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                    const idIdx = headers.indexOf('id');
+                    const rankIdx = headers.indexOf('rank');
+                    const gpaIdx = headers.indexOf('gpa');
+                    const specIdx = headers.indexOf('specialization');
+                    const hoursIdx = headers.indexOf('credit_hours');
+                    const errIdx = headers.indexOf('error');
+
+                    const studentLine = lines.slice(1).find(line => {
+                        const cols = line.split(',');
+                        return cols[idIdx]?.trim() === id;
+                    });
+
+                    if (!studentLine) {
+                        throw new Error(`Student ID ${id} not found.`);
+                    }
+
+                    const data = studentLine.split(',');
+                    setResult({
+                        id: data[idIdx]?.trim(),
+                        rank: data[rankIdx]?.trim(),
+                        gpa: data[gpaIdx]?.trim(),
+                        specialization: data[specIdx]?.trim(),
+                        credit_hours: data[hoursIdx]?.trim(),
+                        error: data[errIdx]?.trim(),
+                        year: id.substring(0, 4)
+                    });
+
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!/^\d{8}$/.test(studentId)) {
+                    setError("ID must be exactly 8 digits.");
+                    return;
+                }
+                fetchStudentData(studentId);
             };
 
             return (
@@ -344,5 +298,5 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<StudentRankLookup />);
     </script>
-</body>
+</body> 
 </html>
