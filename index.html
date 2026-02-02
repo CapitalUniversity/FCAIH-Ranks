@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Rank Lookup - Faculty of Computers and AI</title>
+    <title>FCAIH</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,6 +18,8 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
+    <link rel="icon" type="image/png" href="CapitalUniversity.png">
+
     <style>
         body {
             margin: 0;
@@ -78,79 +80,55 @@
                     return;
                 }
 
-                const fileId = DRIVE_CONFIG[year];
-                if (fileId.startsWith('YOUR_')) {
-                    setError('Please configure Google Drive file IDs in the code (see SETUP_GUIDE.md)');
-                    return;
-                }
-
                 setLoading(true);
                 setError(null);
                 setResult(null);
 
                 try {
-                    // Use Claude API to securely fetch and parse the CSV
-                    const response = await fetch('https://api.anthropic.com/v1/messages', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            model: 'claude-sonnet-4-20250514',
-                            max_tokens: 1000,
-                            messages: [{
-                                role: 'user',
-                                content: `Fetch the CSV file from this Google Drive link: https://drive.google.com/uc?export=download&id=${fileId}
-
-Then find the row where the id column matches "${id}" and return ONLY a JSON object with this exact format:
-{
-    "id": "the id",
-    "specialization": "the specialization",
-    "gpa": "the gpa",
-    "credit_hours": "the credit_hours",
-    "rank": "the rank",
-    "error": "the error field or null"
-}
-
-If the student ID is not found, return:
-{
-    "found": false    
-}
-
-Return ONLY the JSON, no explanation, no markdown formatting.`
-                            }]
-                        })
-                    });
-
-                    const data = await response.json();
+                    // 1. Use the Export URL format for better compatibility
+                    const fileId = DRIVE_CONFIG[year];
+                    const csvUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
                     
-                    if (!data.content || !data.content[0] || !data.content[0].text) {
-                        throw new Error('Invalid response from API');
-                    }
+                    // Note: For Google Drive files (not Sheets), use: 
+                    // const csvUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
 
-                    const resultText = data.content[0].text.trim();
-                    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+                    const response = await fetch(csvUrl);
+                    if (!response.ok) throw new Error('Could not reach the data source');
                     
-                    if (!jsonMatch) {
-                        throw new Error('Could not parse response');
-                    }
+                    const csvText = await response.text();
+                    
+                    // 2. Simple CSV Parser
+                    const rows = csvText.split('\n').map(row => row.split(','));
+                    const headers = rows[0].map(h => h.trim().toLowerCase());
+                    
+                    // Find the index of the columns
+                    const idIdx = headers.indexOf('id');
+                    const specIdx = headers.indexOf('specialization');
+                    const gpaIdx = headers.indexOf('gpa');
+                    const hoursIdx = headers.indexOf('credit_hours');
+                    const rankIdx = headers.indexOf('rank');
 
-                    const studentData = JSON.parse(jsonMatch[0]);
+                    // 3. Search for the student
+                    const studentRow = rows.find(row => row[idIdx]?.trim() === id);
 
-                    if (studentData.found === false) {
+                    if (!studentRow) {
                         setError(`Student ID ${id} not found in ${year} records`);
-                        setLoading(false);
                         return;
                     }
 
+                    // 4. Map data to result
                     setResult({
-                        ...studentData,
+                        id: studentRow[idIdx],
+                        specialization: studentRow[specIdx],
+                        gpa: studentRow[gpaIdx],
+                        credit_hours: studentRow[hoursIdx],
+                        rank: studentRow[rankIdx],
                         year: year
                     });
 
                 } catch (err) {
                     console.error('Error:', err);
-                    setError(`Failed to fetch data: ${err.message}`);
+                    setError("Access Denied: Ensure the Google Drive file is shared as 'Anyone with the link can view'.");
                 } finally {
                     setLoading(false);
                 }
@@ -203,7 +181,7 @@ Return ONLY the JSON, no explanation, no markdown formatting.`
                                 Student Rank Lookup
                             </h1>
                             <p className="text-gray-600">
-                                Enter your student ID to view your rank and credit hours
+                                Enter your student ID to view your rank with 90% Accuracy
                             </p>
                         </div>
 
