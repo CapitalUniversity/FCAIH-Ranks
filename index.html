@@ -18,8 +18,6 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <link rel="icon" type="image/png" href="CapitalUniversity.png">
-
     <style>
         body {
             margin: 0;
@@ -38,24 +36,97 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
+        // CONFIGURATION - Your Google Apps Script Web App URL
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEyvq0dS2H9NjDJg5hdSMika56s83Pw763fr-cKKIJ11QwDz5Lz0HxJ0VOHuhM86I6/exec';
+
         function StudentRankLookup() {
             const [studentId, setStudentId] = useState('');
             const [loading, setLoading] = useState(false);
             const [result, setResult] = useState(null);
             const [error, setError] = useState(null);
+            const [rateLimitInfo, setRateLimitInfo] = useState(null);
 
-            const GIST_URL = "https://gist.githubusercontent.com/CapitalUniversity/749d023d43e89582e80494ea8147f9bf/raw/";
-
+            // Initialize lucide icons after render
             useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [result, error, loading]);
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [result, error, loading, rateLimitInfo]);
+
+            const fetchStudentData = async (id) => {
+                setLoading(true);
+                setError(null);
+                setResult(null);
+                setRateLimitInfo(null);
+
+                try {
+                    // Call your Google Apps Script
+                    const response = await fetch(`${APPS_SCRIPT_URL}?id=${encodeURIComponent(id)}`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.status === 'error') {
+                        // Check if it's a rate limit error
+                        if (data.message && data.message.includes('Too many requests')) {
+                            setRateLimitInfo(data.message);
+                        }
+                        setError(data.message || 'An error occurred');
+                        return;
+                    }
+
+                    if (data.status === 'success' && data.data) {
+                        // Extract year from student ID (first 4 digits)
+                        const year = id.substring(0, 4);
+                        
+                        setResult({
+                            id: data.data.id || id,
+                            specialization: data.data.specialization || 'N/A',
+                            gpa: data.data.gpa || 'N/A',
+                            credit_hours: data.data.credit_hours || 'N/A',
+                            rank: data.data.rank || 'N/A',
+                            error: data.data.error || null,
+                            year: year
+                        });
+                    } else {
+                        setError('Student ID not found');
+                    }
+
+                } catch (err) {
+                    console.error('Error:', err);
+                    setError(`Failed to fetch data: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const trimmedId = studentId.trim();
+                
+                if (!trimmedId) {
+                    setError('Please enter a student ID');
+                    return;
+                }
+
+                if (!/^\d{8}$/.test(trimmedId)) {
+                    setError('Student ID must be 8 digits');
+                    return;
+                }
+
+                fetchStudentData(trimmedId);
+            };
 
             const getRankColor = (rank) => {
                 if (rank === 'N/A' || !rank) return 'text-gray-500';
                 const numRank = parseInt(rank);
-                if (numRank <= 10) return 'text-yellow-500'; 
-                if (numRank <= 100) return 'text-blue-500';
-                return 'text-indigo-600';
+                if (numRank === 1) return 'text-yellow-500';
+                if (numRank <= 10) return 'text-blue-500';
+                if (numRank <= 50) return 'text-green-500';
+                return 'text-gray-600';
             };
 
             const getRankBadge = (rank) => {
@@ -65,62 +136,6 @@
                 if (numRank <= 10) return '🏆 Top 10';
                 if (numRank <= 50) return '⭐ Top 50';
                 return null;
-            };
-
-            const fetchStudentData = async (id) => {
-                setLoading(true);
-                setError(null);
-                setResult(null);
-
-                try {
-                    const response = await fetch(`${GIST_URL}?t=${Date.now()}`);
-                    if (!response.ok) throw new Error('Could not load database');
-                    
-                    const csvText = await response.text();
-                    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
-                    
-                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                    const idIdx = headers.indexOf('id');
-                    const rankIdx = headers.indexOf('rank');
-                    const gpaIdx = headers.indexOf('gpa');
-                    const specIdx = headers.indexOf('specialization');
-                    const hoursIdx = headers.indexOf('credit_hours');
-                    const errIdx = headers.indexOf('error');
-
-                    const studentLine = lines.slice(1).find(line => {
-                        const cols = line.split(',');
-                        return cols[idIdx]?.trim() === id;
-                    });
-
-                    if (!studentLine) {
-                        throw new Error(`Student ID ${id} not found.`);
-                    }
-
-                    const data = studentLine.split(',');
-                    setResult({
-                        id: data[idIdx]?.trim(),
-                        rank: data[rankIdx]?.trim(),
-                        gpa: data[gpaIdx]?.trim(),
-                        specialization: data[specIdx]?.trim(),
-                        credit_hours: data[hoursIdx]?.trim(),
-                        error: data[errIdx]?.trim(),
-                        year: id.substring(0, 4)
-                    });
-
-                } catch (err) {
-                    setError(err.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                if (!/^\d{8}$/.test(studentId)) {
-                    setError("ID must be exactly 8 digits.");
-                    return;
-                }
-                fetchStudentData(studentId);
             };
 
             return (
@@ -138,6 +153,20 @@
                                 Enter your student ID to view your rank with 90% Accuracy
                             </p>
                         </div>
+
+                        {/* Rate Limit Info */}
+                        {rateLimitInfo && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 flex items-start">
+                                <i data-lucide="clock" className="w-5 h-5 text-yellow-500 mt-0.5 mr-3 flex-shrink-0"></i>
+                                <div>
+                                    <h3 className="font-semibold text-yellow-800">Rate Limit Reached</h3>
+                                    <p className="text-yellow-700 text-sm">{rateLimitInfo}</p>
+                                    <p className="text-yellow-600 text-xs mt-1">
+                                        This helps protect student data from automated scraping.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Search Form */}
                         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
@@ -160,6 +189,9 @@
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">
                                         Enter your 8-digit student ID (e.g., 2022XXXX, 2023XXXX, etc.)
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Limited to 5 searches per 5 minutes to protect data security
                                     </p>
                                 </div>
 
@@ -184,7 +216,7 @@
                         </div>
 
                         {/* Error Message */}
-                        {error && (
+                        {error && !rateLimitInfo && (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start">
                                 <i data-lucide="alert-circle" className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0"></i>
                                 <div>
@@ -215,7 +247,7 @@
                                 </div>
 
                                 {/* Stats Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Rank */}
                                     <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4">
                                         <div className="flex items-center mb-2">
@@ -242,10 +274,10 @@
                                             {result.gpa || 'N/A'}
                                         </div>
                                         <div className="mt-2 text-xs text-blue-700">
-                                            {result.gpa && parseFloat(result.gpa) >= 3.5 ? 'Excellent' :
-                                                result.gpa && parseFloat(result.gpa) >= 3.0 ? 'Very Good' :
-                                                result.gpa && parseFloat(result.gpa) >= 2.5 ? 'Good' :
-                                                result.gpa && parseFloat(result.gpa) >= 2.0 ? 'Pass' : 'Needs Improvement'}
+                                            {result.gpa && parseFloat(result.gpa) >= 3.4 ? 'Excellent, امتياز' : 
+                                            result.gpa && parseFloat(result.gpa) >= 2.8 ? 'Very Good, جيد جدا' :
+                                            result.gpa && parseFloat(result.gpa) >= 2.4 ? 'Good, جيد' :
+                                            result.gpa && parseFloat(result.gpa) >= 2.0 ? 'Pass, ناجح' : 'Needs Improvement'}
                                         </div>
                                     </div>*/}
 
@@ -298,5 +330,5 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<StudentRankLookup />);
     </script>
-</body> 
+</body>
 </html>
