@@ -42,7 +42,7 @@
         const { useState, useEffect } = React;
 
         // CONFIGURATION - Your Google Apps Script Web App URL
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyFb0YbUD8TvYbWok0Pto7kCVDWMIShx2_38XL3rEPO_IyoD_QxpiPYxmj8v_-uh4B/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLgXuvPOS_r82N9M8FqZ1TkoZ8Pl9p7E5MxKwRT876ltNvs2sx_2uiTH3getkoB3i-/exec';
 
         function StudentRankLookup() {
             const [studentId, setStudentId] = useState('');
@@ -58,6 +58,19 @@
                 }
             }, [result, error, loading, rateLimitInfo]);
 
+            // ... existing state variables ...
+
+            // 1. ADD THIS HELPER FUNCTION inside the component or outside
+            const getBrowserFingerprint = () => {
+                let token = localStorage.getItem('fcaih_user_token');
+                if (!token) {
+                    // Generate a random unique ID for this browser
+                    token = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+                    localStorage.setItem('fcaih_user_token', token);
+                }
+                return token;
+            };
+
             const fetchStudentData = async (id) => {
                 setLoading(true);
                 setError(null);
@@ -65,12 +78,17 @@
                 setRateLimitInfo(null);
 
                 try {
-                    // Call your Google Apps Script
-                    const response = await fetch(`${APPS_SCRIPT_URL}?id=${encodeURIComponent(id)}`);
+                    // 2. GET THE TOKEN
+                    const userToken = getBrowserFingerprint();
+
+                    // 3. SEND THE TOKEN TO GOOGLE APPS SCRIPT
+                    // Notice we added &userToken=${userToken} to the URL
+                    const response = await fetch(`${APPS_SCRIPT_URL}?id=${encodeURIComponent(id)}&userToken=${userToken}`);
                     
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
                     }
+            // ... rest of your code remains exactly the same ...
 
                     const data = await response.json();
 
@@ -195,6 +213,7 @@
                                     <p className="text-xs text-gray-500 mt-1">
                                         Enter your 8-digit student ID (e.g., 2022XXXX, 2023XXXX, etc.)
                                     </p>
+                                    
                                 </div>
 
                                 <button
@@ -333,7 +352,4 @@
         root.render(<StudentRankLookup />);
     </script>
 </body>
-
 </html>
-
-
