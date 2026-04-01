@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FCAIH - Student Lookup</title>
 
+    <script src="https://www.google.com/recaptcha/api.js?render=6Lebi6EsAAAAAKnCbQW14dj-LngpAzKonC79fIUh"></script>
+    
     <link rel="icon" type="image/png" href="CapitalUniversity.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -130,6 +132,13 @@
             };
 
             const handleSubmit = (e) => {
+
+                window.grecaptcha.ready(function() {
+                    window.grecaptcha.execute('YOUR_SITE_KEY', {action: 'submit'}).then(async function(token) {
+                        // Send this token to your Apps Script instead of the fake browser token
+                        const response = await fetch(`${APPS_SCRIPT_URL}?id=${studentId}&recaptchaToken=${token}`);
+                    });
+                });
                 e.preventDefault();
                 const trimmedId = studentId.trim();
                 
