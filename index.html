@@ -134,7 +134,7 @@
             const handleSubmit = (e) => {
 
                 window.grecaptcha.ready(function() {
-                    window.grecaptcha.execute('YOUR_SITE_KEY', {action: 'submit'}).then(async function(token) {
+                    window.grecaptcha.execute('6Lebi6EsAAAAAKnCbQW14dj-LngpAzKonC79fIUh', {action: 'submit'}).then(async function(token) {
                         // Send this token to your Apps Script instead of the fake browser token
                         const response = await fetch(`${APPS_SCRIPT_URL}?id=${studentId}&recaptchaToken=${token}`);
                     });
