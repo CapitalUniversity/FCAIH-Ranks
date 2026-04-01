@@ -50,7 +50,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLgXuvPOS_r82N9M8FqZ1TkoZ8Pl9p7E5MxKwRT876ltNvs2sx_2uiTH3getkoB3i-/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhRQaGxZ0BVNuPsXp3iW7LtPZclg-m4_uJ_l62jyjkdqCSuAvDSsGFH0tviVmSmXIF/exec';
 
         function StudentRankLookup() {
             const [studentId, setStudentId] = useState('');
@@ -87,28 +87,31 @@
                 setError(null);
                 setResult(null);
                 setRateLimitInfo(null);
-
+            
                 try {
-                    const userToken = getBrowserFingerprint();
-                    const response = await fetch(`${APPS_SCRIPT_URL}?id=${encodeURIComponent(id)}&userToken=${userToken}`);
+                    // 1. Generate the reCAPTCHA token securely
+                    const token = await window.grecaptcha.execute('6Lebi6EsAAAAAKnCbQW14dj-LngpAzKonC79fIUh', {action: 'submit'});
+            
+                    // 2. Send the real token to Apps Script (Notice we use recaptchaToken= here)
+                    const response = await fetch(`${APPS_SCRIPT_URL}?id=${encodeURIComponent(id)}&recaptchaToken=${token}`);
                     
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
                     }
-
+            
                     const data = await response.json();
-
+            
                     if (data.status === 'error') {
-                        if (data.message && data.message.includes('Too many requests')) {
+                        if (data.message && data.message.includes('Too many requests') || data.message.includes('Bot detected')) {
                             setRateLimitInfo(data.message);
                         }
                         setError(data.message || 'An error occurred');
                         return;
                     }
-
+            
                     if (data.status === 'success' && data.data) {
                         const safeString = (val) => (val === null || val === undefined) ? 'N/A' : String(val);
-
+            
                         setResult({
                             id: safeString(data.data.id || id),
                             name: safeString(data.data.name),
@@ -122,7 +125,7 @@
                     } else {
                         setError('Student ID not found');
                     }
-
+            
                 } catch (err) {
                     console.error('Error:', err);
                     setError(`Failed to fetch data: ${err.message}`);
@@ -130,18 +133,12 @@
                     setLoading(false);
                 }
             };
-
+            
             const handleSubmit = (e) => {
-
-                window.grecaptcha.ready(function() {
-                    window.grecaptcha.execute('6Lebi6EsAAAAAKnCbQW14dj-LngpAzKonC79fIUh', {action: 'submit'}).then(async function(token) {
-                        // Send this token to your Apps Script instead of the fake browser token
-                        const response = await fetch(`${APPS_SCRIPT_URL}?id=${studentId}&recaptchaToken=${token}`);
-                    });
-                });
                 e.preventDefault();
                 const trimmedId = studentId.trim();
                 
+                // Simple validation
                 if (!trimmedId) {
                     setError('Please enter a student ID');
                     return;
@@ -150,6 +147,8 @@
                     setError('Student ID must be 8 digits');
                     return;
                 }
+                
+                // Call the updated fetch function
                 fetchStudentData(trimmedId);
             };
 
